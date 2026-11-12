@@ -142,6 +142,19 @@ details.qa .body ul{margin:4px 0; padding-left:1.2em}
 .hidden{display:none !important}
 mark{background:var(--warn-soft); color:inherit; padding:0 1px; border-radius:3px}
 
+.searchbox input[type=search]{display:block; width:100%; font-size:1.05rem; padding:10px 14px; border-radius:10px}
+.searchbox input[type=search]:focus{outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent)}
+.suggest{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; align-items:center}
+.suggest .lbl{font-size:.8rem; color:var(--muted); margin-right:2px}
+.kw{border:1px solid var(--border); background:var(--surface-2); color:var(--text); font:inherit; font-size:.8rem; border-radius:99px; padding:2px 10px; cursor:pointer}
+.kw:hover{border-color:var(--accent); color:var(--accent)}
+.kw small{color:var(--muted); margin-left:4px; font-variant-numeric:tabular-nums}
+.btn.sm{font-size:.78rem; padding:2px 10px; white-space:nowrap}
+#srchMeta .toolbar{margin:14px 0 10px}
+details.srch-ans{margin-top:10px}
+details.srch-ans summary{cursor:pointer; color:var(--accent); font-size:.88rem}
+details.srch-ans .optline{margin-top:6px}
+
 @media (max-width:600px){
   .stats{grid-template-columns:repeat(2,1fr)}
   .card{padding:16px}
@@ -175,6 +188,7 @@ mark{background:var(--warn-soft); color:inherit; padding:0 1px; border-radius:3p
 
   <nav class="tabs" id="tabs">
     <button data-tab="practice" class="active">練習模式</button>
+    <button data-tab="search" title="快捷鍵：/">關鍵字搜尋</button>
     <button data-tab="quiz">模擬測驗</button>
     <button data-tab="wrong">錯題本<span class="badge" id="wrongBadge">0</span></button>
     <button data-tab="progress">章節進度</button>
@@ -468,12 +482,117 @@ function newSession(kind, o){
   let keys;
   if(kind==="wrong") keys = ALL.filter(q=>wrongSet.has(q.key)).map(q=>q.key);
   else if(kind==="quiz"){ keys = shuffle(scopeKeys(o.scope)); if(o.n && o.n<keys.length) keys = keys.slice(0,o.n); }
+  else if(kind==="search") keys = [...o.keys];
   else keys = scopeKeys(prefs.scope);
   if(kind!=="quiz" && o.random) keys = shuffle(keys);
   let idx = 0;
   if(kind==="practice" && !o.random && o.resume){ idx = Math.min(prefs.pos[prefs.scope]||0, Math.max(0,keys.length-1)); }
   gridOpen = keys.length <= 80;
-  return { kind, keys, idx, answers:{}, random:!!o.random, submitted:false, start:Date.now(), removed:{}, scope:o.scope, n:o.n };
+  return { kind, keys, idx, answers:{}, random:!!o.random, submitted:false, start:Date.now(), removed:{}, scope:o.scope, n:o.n, baseKeys:o.keys, term:o.term };
+}
+
+/* ===================== 關鍵字搜尋 ===================== */
+// 去除 HTML 標籤、全形轉半形、不分大小寫
+const norm = s => String(s||"").replace(/<[^>]*>/g," ").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").normalize("NFKC").toLowerCase();
+const parseTerms = s => [...new Set(norm(s).split(/[\s,，、]+/).filter(Boolean))];
+let IDX = null;
+function searchIndex(){
+  if(IDX) return IDX;
+  IDX = {};
+  ALL.forEach(q=>{ IDX[q.key] = { t: norm(q.stem+" "+(q.items||[]).join(" ")+" "+q.opts.join(" ")), e: norm(q.exp) }; });
+  return IDX;
+}
+// 每個關鍵字都要出現（AND）；withExp 時也比對解析
+function matchQ(q, terms, withExp){
+  const ix = searchIndex()[q.key];
+  return terms.every(t => ix.t.includes(t) || (withExp && ix.e.includes(t)));
+}
+const onlyInExp = (q, terms) => !terms.every(t => searchIndex()[q.key].t.includes(t));
+// 只在文字節點上加 <mark>，不會破壞原本的 HTML 標籤
+function mkHL(terms){
+  if(!terms.length) return s=>s;
+  const re = new RegExp([...terms].sort((a,b)=>b.length-a.length).map(t=>t.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|"),"gi");
+  return s => String(s).replace(/(<[^>]*>|&[#\w]+;)|([^<&]+)/g, (m,tag,txt) => tag ? tag : txt.replace(re,"<mark>$&</mark>"));
+}
+
+let srch = Object.assign({term:"", scope:"any", exp:false}, prefs.srch||{});
+let srchPracticing = false;
+const saveSrch = () => { prefs.srch = srch; save(); };
+const KEYWORDS = ["MRP","BOM","ATP","MPS","物料需求","存貨","採購","生產","排程","顧客","會計","成本","財務","人力資源","品質","雲端","供應鏈","導入","CRM","SCM","BPR"];
+let kwCounts = null;
+
+function searchKeys(){
+  const terms = parseTerms(srch.term);
+  if(!terms.length) return {terms, keys:[]};
+  const base = srch.scope==="any" ? ALL.map(q=>q.key) : scopeKeys(srch.scope);
+  return {terms, keys: base.filter(k=>matchQ(BY[k], terms, srch.exp))};
+}
+
+function renderSearch(){
+  if(srchPracticing && sessions.search){ renderPractice("search"); return; }
+  const scOpts = `<optgroup label="全部"><option value="any" ${srch.scope==="any"?"selected":""}>全部題庫（官方＋課本，${ALL.length} 題）</option></optgroup>` + scopeOptions(srch.scope);
+  $("#view").innerHTML = `
+  <div class="card">
+    <div class="searchbox"><input type="search" id="srchInput" placeholder="輸入關鍵字，例如：MRP、存貨、主生產排程（空格分隔＝同時包含）" value="${esc(srch.term)}" autocomplete="off" aria-label="搜尋關鍵字"></div>
+    <div class="toolbar" style="margin:10px 0 0">
+      <div class="left">
+        <select id="srchScope" aria-label="搜尋範圍">${scOpts}</select>
+        <label class="toggle"><input type="checkbox" id="srchExp" ${srch.exp?"checked":""}> 也搜尋解析內容</label>
+      </div>
+    </div>
+    <div class="suggest" id="srchSuggest"></div>
+  </div>
+  <div id="srchMeta"></div>
+  <div id="srchList"></div>`;
+  renderSearchResults();
+  const inp=$("#srchInput"); inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length);
+}
+
+function renderSearchResults(){
+  if(!kwCounts){ kwCounts={}; KEYWORDS.forEach(k=>{ const t=parseTerms(k); kwCounts[k]=ALL.filter(q=>matchQ(q,t,false)).length; }); }
+  $("#srchSuggest").innerHTML = `<span class="lbl">常見關鍵字：</span>` +
+    KEYWORDS.filter(k=>kwCounts[k]).map(k=>`<button class="kw" data-kw="${esc(k)}">${esc(k)}<small>${kwCounts[k]}</small></button>`).join("");
+  const {terms, keys} = searchKeys();
+  if(!terms.length){
+    $("#srchMeta").innerHTML = "";
+    $("#srchList").innerHTML = `<div class="card empty">輸入關鍵字即可找出相關題目，題目、選項都會比對。<br>可用空格輸入多個關鍵字（例如「MRP 存貨」會找出同時包含兩者的題目），英文不分大小寫。<br>在其他分頁按 <b>/</b> 可以快速跳到這裡。</div>`;
+    return;
+  }
+  const hl = mkHL(terms);
+  // 課本問答題（範圍為全部或課本時才比對）
+  const essays = (srch.scope==="any" || srch.scope==="book")
+    ? ESSAY.map((e,i)=>({e,i})).filter(({e})=>{ const t=norm(e.q+" "+e.a); return terms.every(w=>t.includes(w)); })
+    : [];
+  $("#srchMeta").innerHTML = `<div class="toolbar">
+    <div class="left"><span class="chip">找到 ${keys.length} 道選擇題${essays.length?`・${essays.length} 道問答題`:""}</span></div>
+    ${keys.length?`<div class="left"><button class="btn primary" data-act="srchPractice">練習這 ${keys.length} 題</button></div>`:""}
+  </div>`;
+  const list = keys.map((k,i)=>{
+    const q=BY[k], expOnly = srch.exp && onlyInExp(q, terms);
+    return `<div class="review-item">
+      <div class="qhead"><span class="qno">${i+1}.</span><span class="chips">${srcChips(q,true)}<button class="btn sm" data-sgo="${i}">練習這題 →</button></span></div>
+      <div class="chlabel">${q.ch}</div>
+      <p class="stem" style="font-size:1rem">${hl(q.stem)}</p>${q.items?`<ul class="items">${q.items.map(t=>`<li>${hl(t)}</li>`).join("")}</ul>`:""}
+      ${q.opts.map((o,j)=>`<div class="optline">${L[j]}. ${hl(o)}</div>`).join("")}
+      <details class="srch-ans" ${expOnly?"open":""}><summary>${expOnly?"答案與解析（關鍵字出現在解析中）":"看答案與解析"}</summary>
+        <div class="optline c">正確答案：${L[q.ans]}. ${q.opts[q.ans]}</div>
+        <div class="explain ok">${hl(expHTML(q))}</div>
+      </details>
+    </div>`;
+  }).join("");
+  const essayHTML = essays.map(({e,i})=>`<details class="qa"><summary>問答題 ${i+1}. ${hl(e.q)}</summary><div class="body">${hl(e.a)}</div></details>`).join("");
+  $("#srchList").innerHTML =
+    (list ? `<div class="card">${list}</div>` : "") +
+    (essayHTML ? `<h3 style="font-size:1rem;margin:18px 0 8px">課本問答題</h3>${essayHTML}` : "") +
+    (!list && !essayHTML ? `<div class="card empty">找不到同時包含「${esc(terms.join("、"))}」的題目${srch.exp?"":"<br>可以勾選「也搜尋解析內容」擴大搜尋"}${srch.scope==="any"?"":"，或把範圍改成全部題庫"}</div>` : "");
+}
+
+function startSearchPractice(i){
+  const {keys} = searchKeys(); if(!keys.length) return;
+  sessions.search = newSession("search", {keys, term:srch.term});
+  sessions.search.idx = Math.max(0, Math.min(i, keys.length-1));
+  gridOpen = keys.length <= 80;
+  srchPracticing = true; render(); window.scrollTo({top:0});
 }
 
 /* ===================== 單題渲染 ===================== */
@@ -531,6 +650,8 @@ function renderPractice(kind){
   const correct = s.keys.filter(k=>s.answers[k]===BY[k].ans).length;
   const top = kind==="wrong"
     ? `<div class="note">共 ${s.keys.length} 題。在這裡答對的題目會自動從錯題本移除；答錯則繼續保留。</div>`
+    : kind==="search"
+    ? `<div class="toolbar"><div class="left"><button class="btn" data-act="srchBack">← 回到搜尋結果</button><span class="chip">搜尋「${esc(s.term)}」・共 ${s.keys.length} 題</span></div></div>`
     : "";
   $("#view").innerHTML = `${top}
   <div class="toolbar">
@@ -650,9 +771,10 @@ function renderAll(){
 function renderOvList(){
   const term = ($("#ovSearch") && $("#ovSearch").value || "").trim();
   const hide = $("#hideAns") && $("#hideAns").checked;
-  let keys = term ? ALL.map(q=>q.key) : scopeKeys(ovScope);
-  const hl = s => { if(!term) return s; return s.split(term).join(`<mark>${esc(term)}</mark>`); };
-  if(term) keys = keys.filter(k=>{ const q=BY[k]; return (q.stem+" "+(q.items||[]).join(" ")+" "+q.opts.join(" ")).includes(term); });
+  const terms = parseTerms(term);
+  let keys = terms.length ? ALL.map(q=>q.key) : scopeKeys(ovScope);
+  const hl = mkHL(terms);
+  if(terms.length) keys = keys.filter(k=>matchQ(BY[k], terms, false));
   const list = keys.map(k=>{
     const q=BY[k];
     return `<div class="review-item">
@@ -683,9 +805,10 @@ function render(){
   else if(tab==="quiz") renderQuiz();
   else if(tab==="progress") renderProgress();
   else if(tab==="essay") renderEssay();
+  else if(tab==="search") renderSearch();
   else renderAll();
 }
-const curSession = () => tab==="practice"?sessions.practice : tab==="wrong"?sessions.wrong : tab==="quiz"?sessions.quiz : null;
+const curSession = () => tab==="practice"?sessions.practice : tab==="wrong"?sessions.wrong : tab==="quiz"?sessions.quiz : (tab==="search"&&srchPracticing)?sessions.search : null;
 
 function pick(i){
   const s = curSession(); if(!s || s.submitted || !s.keys.length) return;
@@ -716,22 +839,29 @@ document.getElementById("tabs").addEventListener("click",e=>{
   const b=e.target.closest("button[data-tab]"); if(!b) return;
   tab=b.dataset.tab;
   if(tab==="wrong") sessions.wrong = newSession("wrong");
+  if(tab==="search") srchPracticing = false;
   render(); window.scrollTo({top:0});
 });
 
 document.getElementById("view").addEventListener("click",e=>{
   const sc=e.target.closest("[data-scope]");
   if(sc){ e.preventDefault(); return startPracticeScope(sc.dataset.scope); }
-  const t=e.target.closest("[data-pick],[data-nav],[data-go],[data-act]"); if(!t) return;
+  const kw=e.target.closest("[data-kw]");
+  if(kw){ srch.term=kw.dataset.kw; saveSrch(); $("#srchInput").value=srch.term; renderSearchResults(); return; }
+  const t=e.target.closest("[data-pick],[data-nav],[data-go],[data-act],[data-sgo]"); if(!t) return;
+  if(t.dataset.sgo!==undefined) return startSearchPractice(+t.dataset.sgo);
   if(t.dataset.pick!==undefined) return pick(+t.dataset.pick);
   if(t.dataset.nav) return go(curSession().idx + (+t.dataset.nav));
   if(t.dataset.go!==undefined) return go(+t.dataset.go);
   const a=t.dataset.act;
   if(a==="restart"){
     if(tab==="practice"){ prefs.pos[prefs.scope]=0; save(); sessions.practice=newSession("practice",{random:prefs.random}); }
+    else if(tab==="search"){ const o=sessions.search; sessions.search=newSession("search",{keys:o.baseKeys, term:o.term, random:o.random}); }
     else sessions.wrong=newSession("wrong",{random:sessions.wrong&&sessions.wrong.random});
     render();
   }
+  if(a==="srchPractice") return startSearchPractice(0);
+  if(a==="srchBack"){ srchPracticing=false; render(); window.scrollTo({top:0}); return; }
   if(a==="clear"){ if(confirm("確定要清除所有作答紀錄、錯題本與最高分嗎？")){ wrongSet=new Set(); history={}; best=null; prefs.pos={}; save(); refreshStats(); sessions.practice=null; render(); } }
   if(a==="startQuiz"){
     prefs.quizScope=$("#quizScope").value; prefs.quizN=+$("#quizN").value; save();
@@ -763,9 +893,12 @@ document.getElementById("view").addEventListener("change",e=>{
   if(id==="scopeSel") startPracticeScope(e.target.value);
   if(id==="rnd"){
     if(tab==="practice"){ prefs.random=e.target.checked; save(); sessions.practice=newSession("practice",{random:prefs.random, resume:true}); }
+    else if(tab==="search"){ const o=sessions.search; sessions.search=newSession("search",{keys:o.baseKeys, term:o.term, random:e.target.checked}); }
     else sessions.wrong=newSession("wrong",{random:e.target.checked});
     render();
   }
+  if(id==="srchScope"){ srch.scope=e.target.value; saveSrch(); renderSearchResults(); }
+  if(id==="srchExp"){ srch.exp=e.target.checked; saveSrch(); renderSearchResults(); }
   if(id==="ovScope"){ ovScope=e.target.value; $("#ovSearch").value=""; renderOvList(); }
   if(id==="hideAns") renderOvList();
   if(id==="onlyWrong"){
@@ -776,11 +909,14 @@ document.getElementById("view").addEventListener("change",e=>{
 let searchTimer=null;
 document.getElementById("view").addEventListener("input",e=>{
   if(e.target.id==="ovSearch"){ clearTimeout(searchTimer); searchTimer=setTimeout(renderOvList,200); }
+  if(e.target.id==="srchInput"){ clearTimeout(searchTimer); const v=e.target.value; searchTimer=setTimeout(()=>{ srch.term=v; saveSrch(); renderSearchResults(); },150); }
 });
 
 document.addEventListener("keydown",e=>{
-  if(!["practice","wrong","quiz"].includes(tab) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if(e.ctrlKey || e.metaKey || e.altKey) return;
   if(["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName)) return;
+  if(e.key==="/"){ e.preventDefault(); tab="search"; srchPracticing=false; render(); window.scrollTo({top:0}); return; }
+  if(!["practice","wrong","quiz","search"].includes(tab)) return;
   const s=curSession(); if(!s || !s.keys.length || (tab==="quiz"&&s.submitted)) return;
   const k=e.key.toUpperCase();
   const map={A:0,B:1,C:2,D:3,"1":0,"2":1,"3":2,"4":3};
