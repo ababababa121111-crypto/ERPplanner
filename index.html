@@ -155,6 +155,27 @@ details.srch-ans{margin-top:10px}
 details.srch-ans summary{cursor:pointer; color:var(--accent); font-size:.88rem}
 details.srch-ans .optline{margin-top:6px}
 
+.ttsrow{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 10px}
+.ttsrow select{width:auto; font-size:.78rem; padding:2px 6px}
+.btn.tts.on{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.opt small.orig{color:var(--muted); font-size:.75rem; margin-left:6px; white-space:nowrap}
+.orignote{font-size:.8rem; color:var(--muted); margin-top:6px}
+
+details.memo{margin-top:12px; padding:10px 14px; border-radius:10px; background:var(--warn-soft); color:var(--text); font-size:.94rem}
+details.memo summary{cursor:pointer; font-weight:700; color:var(--warn)}
+.memo-tip{margin:8px 0; padding:8px 12px; background:var(--surface); border-radius:8px}
+.memo-tip b{color:var(--warn)}
+details.memo p, .memo-card p{margin:6px 0}
+details.memo ul, .memo-card ul{margin:6px 0; padding-left:1.3em}
+.memo-card h3{font-size:1.05rem; margin:0}
+.memo-card .qhead{align-items:flex-start; gap:10px}
+.memo-card .memo-qs{margin-top:8px}
+.memo-card .memo-qs summary{cursor:pointer; color:var(--accent); font-size:.88rem}
+.memo-card .memo-qs .tiprow{font-size:.88rem; margin:6px 0; padding-left:10px; border-left:3px solid var(--warn)}
+.memo-toc{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px}
+.memo-toc a{text-decoration:none}
+.chip.miss{background:var(--bad-soft); color:var(--bad)}
+
 @media (max-width:600px){
   .stats{grid-template-columns:repeat(2,1fr)}
   .card{padding:16px}
@@ -191,6 +212,7 @@ details.srch-ans .optline{margin-top:6px}
     <button data-tab="search" title="快捷鍵：/">關鍵字搜尋</button>
     <button data-tab="quiz">模擬測驗</button>
     <button data-tab="wrong">錯題本<span class="badge" id="wrongBadge">0</span></button>
+    <button data-tab="memo">聯想記憶</button>
     <button data-tab="progress">章節進度</button>
     <button data-tab="essay">課本問答題</button>
     <button data-tab="all">題目總覽</button>
@@ -410,6 +432,325 @@ Q.forEach(q=>ALL.push({key:"b"+q.id, bank:"book", ch:BOOK_CH, no:q.id, stem:q.st
 const BY = {}; ALL.forEach(q=>BY[q.key]=q);
 const CHAPTERS = []; OFF.forEach(q=>{ if(!CHAPTERS.includes(q.ch)) CHAPTERS.push(q.ch); });
 
+/* ===================== 聯想記憶：容易混淆的觀念組 ===================== */
+// t：標題；keys：相關題目；h：整組的聯想；tips：個別題目的關鍵提示
+const MEMO = [
+{ t:"需求反應策略：存貨生產、訂單裝配、訂單生產、訂單設計",
+  keys:["o12","o15","o25","o44","o45","o46","o47","o49","o51","o62","o110","b2"],
+  h:`<p><b>先問自己：「接到訂單的那一刻，工廠已經做到哪一步？」</b></p>
+<table class="mini"><tr><th>策略</th><th>接單前已備好</th><th>接單後才做</th><th>題目關鍵字</th></tr>
+<tr><td>存貨生產 MTS</td><td>成品</td><td>直接出貨</td><td>事先預測、以存貨滿足訂單</td></tr>
+<tr><td>訂單裝配 ATO</td><td>零組件</td><td>組裝</td><td>裝配零組件、少量多樣、快速回應</td></tr>
+<tr><td>訂單生產 MTO</td><td>原物料</td><td>照規格生產</td><td>根據訂單規格</td></tr>
+<tr><td>訂單設計 ETO</td><td>什麼都沒有</td><td>設計＋生產</td><td>功能需求、量身訂做 (Tailor Made)</td></tr></table>
+<p>記法：「訂單○○」的後兩個字，就是<b>接單後才開始做的事</b>：訂單<b>裝配</b>＝接單才組、訂單<b>生產</b>＝接單才做、訂單<b>設計</b>＝接單才畫設計圖。</p>
+<p>表格由上往下：客製化越高、交期越長、批量越小。</p>`,
+  tips:{
+    o15:`三個條件一起看：「快速回應」只有 MTS 或 ATO 做得到（東西大致備好了）；「成品存貨最低」就排除 MTS（MTS 是囤成品）→ 剩<b>訂單裝配</b>：只囤零件、不囤成品，同一批零件換個組合就是「少量多樣」。`,
+    o51:`三個條件一起看：「快速回應」只有 MTS 或 ATO 做得到；「成品存貨最低」排除囤成品的 MTS → <b>訂單裝配</b>：只囤零件，零件換組合就是「少量多樣」。`,
+    b2:`三個條件一起看：「快速回應」只有 MTS 或 ATO 做得到；「成品存貨最低」排除囤成品的 MTS → <b>訂單裝配</b>：只囤零件，零件換組合就是「少量多樣」。`,
+    o49:`批量最小＝客製化最高＝<b>訂單設計</b>：每張訂單都是新設計，常常只做一件。`,
+    o62:`大量生產、重複性生產是工廠的「生產方式」（見第 110 題），不是需求反應策略。需求反應策略只有 MTS、MTO、ATO、ETO 四種。`,
+    o110:`把接單生產、存貨生產、重複性生產、流程製造放在一起講，是在講工廠的<b>生產方式（型態）</b>，不是規劃方式。`
+  }},
+
+{ t:"出貨排程：順序與各段時間的名稱",
+  keys:["o20","o21","o28","o29","o60","b7"],
+  h:`<p>順序：<b>物料可用 → 運輸規劃 → 裝載 → 系統扣帳</b>（3214）</p>
+<p>聯想：「<b>有貨 → 叫車 → 上車 → 出門</b>」。貨要先準備好（物料可用），才安排車子（運輸規劃），車來了把貨裝上去（裝載），貨一離開倉庫，系統就扣帳。</p>
+<p>兩個時間點之間的間距，用「<b>這段期間在做的事</b>」命名：</p>
+<ul><li>物料可用 → 裝載：這段時間在挑貨、打包 → <b>挑料／包裝時間</b></li>
+<li>裝載 → 系統扣帳：這段時間在裝車 → <b>裝載時間</b></li>
+<li>系統扣帳 → 交到顧客手上：這段時間在路上 → 運送時間</li></ul>
+<p>「物料可用期限」＝產品已經生產或採購完成、可以開始挑料包裝的時間點。</p>`},
+
+{ t:"銷售文件的對應：訂單、交貨文件、交貨清單、發票",
+  keys:["o13","o22","o23","o24","o32","o33","o34","o35","o36","b6","b15","b17"],
+  h:`<p>整條線：<b>銷售訂單 → 交貨文件 → 交貨清單 → 顧客發票（請款）</b>。請款是 SD 的<b>最後一步</b>：錢收回來，這筆生意才算完成。</p>
+<ul><li>訂單與交貨文件：<b>一對多、多對一都可以</b>。一張訂單分好幾次送＝<b>局部交貨</b>，多張訂單也能併成一次送。題目說「不可以」就是錯的。</li>
+<li>交貨文件與交貨清單：<b>一對一</b>。交貨清單就是交貨文件「印出來跟著貨走的那張紙」，所以以交貨文件為基準，上面寫的是收貨人要看的東西：對應訂單、交貨日、顧客地址、品名規格數量、出貨點。</li>
+<li>交貨文件也是啟動<b>挑料</b>的來源：有了交貨文件，倉庫才知道要挑哪些貨。</li>
+<li>交貨文件與發票的對應，看名字就懂：<b>個別</b>＝一張對一張；<b>匯集</b>＝多張匯成一張；<b>分離</b>＝一張拆成多張。「區隔的顧客發票」不存在，是干擾選項。</li></ul>`,
+  tips:{
+    o32:`「一張訂單切成數張交貨文件」→ 每張只送一部分 →<b>局部交貨</b>。「訂單分割」聽起來很像，但不是這裡的用語。`,
+    o24:`扣帳之後還要開發票<b>請款</b>，錢收到才結束。`,
+    b17:`扣帳之後還要開發票<b>請款</b>，錢收到才結束。`
+  }},
+
+{ t:"要項協議、售前文件、交貨文件的來源、可用量查核的時點",
+  keys:["o31","o48","o50","o53","o59","o68","o71","o72","o73","o75","b3","b5","b8","b9"],
+  h:`<p>先把文件分家：</p>
+<ul><li><b>售前文件</b>＝詢價單、報價單（還沒成交）。</li>
+<li><b>要項協議</b>＝長期的大框架＝<b>顧客契約</b>（約定產品數量與價格）＋<b>出貨協議</b>（約定出貨數量與日期）。</li>
+<li>要項協議只是框架；顧客要真正拿貨時，會<b>開出銷售訂單</b>來履行。</li></ul>
+<p><b>交貨文件從哪裡來？</b>必須已經知道「哪天送多少」才開得出來：銷售訂單 ✔、出貨協議 ✔（本身就寫了出貨日期與數量）、手動建立 ✔。顧客契約 ✘（只約定價格和數量，要先開銷售訂單）、報價單 ✘（還沒成交）。</p>
+<p><b>可用量查核 (ATP) 什麼時候自動執行？</b>從「開始對顧客承諾交期」的文件起都要查：報價單、銷售訂單、交貨文件 ✔。詢價單只是問問 ✘。</p>
+<p><b>建立銷售訂單會參考什麼？</b>顧客主檔、物料主檔、報價單、契約（1235）。不參考庫存主檔、詢價單。付款條件、稅賦這類跟「這位顧客」有關的資料，來自顧客主檔。</p>
+<p><b>請款價格</b>可以從銷售訂單轉來、重新定價或手動輸入，但不會來自詢價單（詢價單上沒有成交價）。</p>`,
+  tips:{
+    b5:`官方第 50 題是複選：報價單、銷售訂單、交貨文件都會查核。這題是單選，選最核心的<b>銷售訂單</b>。`
+  }},
+
+{ t:"價格調整：借項／貸項、回饋 (Rebate)",
+  keys:["o14","o37","b12","b18"],
+  h:`<p><b>計價過低</b> → 要向顧客<b>多收</b>錢 → 應收帳款增加 → 應收帳款是資產，增加記在借方 → <b>借項</b>憑證（通知單）。</p>
+<p>反過來，計價過高或退貨 → 要<b>退錢</b>給顧客 → 應收帳款減少 → <b>貸項</b>。</p>
+<p>聯想：「<b>少收了，跟顧客『借』回來</b>」。</p>
+<p><b>回饋 (Rebate)</b>＝顧客在<b>一段期間內</b>買超過一定數量或金額，<b>事後退還</b>一部分錢。重點是「一段期間後才退」，不是下單當下打折。</p>`},
+
+{ t:"ATP、有效庫存量、淨需求、再訂購點的公式",
+  keys:["o26","o41","b19","o184","o188","o208","o231","o232","o103","o215","o217","o226","o233"],
+  h:`<p>三個公式長得一樣，都是「<b>手上有的 ＋ 會進來的 − 已經被訂走的</b>」，差在用字：</p>
+<table class="mini"><tr><th>名稱</th><th>公式</th><th>記法</th></tr>
+<tr><td>允諾可用量 ATP（銷售）</td><td>存貨 ＋ <b>計劃</b>收料 − <b>計劃</b>扣料</td><td>業務跟顧客承諾交期，看的是「計劃」</td></tr>
+<tr><td>有效庫存量（庫存）</td><td>現有庫存 ＋ 已訂未交 − 已指定用途</td><td>倉庫看「已經下單」「已經指定」</td></tr>
+<tr><td>淨需求（MRP）</td><td>需求 − 期初庫存 − 當期供應</td><td>倒過來：先看要多少，再扣掉有的</td></tr></table>
+<p>ATP 的陷阱：選項出現「<b>實際</b>收料／實際扣料」，或正負號顛倒，都是錯的。ATP 公式裡只會看到「計劃」。</p>
+<p>有效庫存量<b>不算</b>市場預測需求：預測的需求還沒發生，不能扣。</p>
+<p><b>再訂購點 ROP ＝ 前置時間 × 每日需求 ＋ 安全庫存</b>：等貨送到的這幾天會用掉多少，再加一點保險。</p>
+<p><b>存貨價值 ＝ 存貨數量 × 單位成本</b>。</p>`,
+  tips:{
+    o232:`45 ＋ 15 − 45 ＝ <b>15</b>。`,
+    o103:`淨需求 ＝ 58 − 40 − 13 ＝ <b>5</b>。`,
+    o215:`SS ＝ ROP − LT × D ＝ 400 − 3 × 120 ＝ <b>40</b>。`,
+    o226:`5 × 100 ＋ 15 ＝ <b>515</b>。`,
+    o26:`64 ＋ 0 − 53 ＝ <b>11</b>。`
+  }},
+
+{ t:"生產規劃的層級：S&OP → 需求管理 → MPS → MRP",
+  keys:["o85","o86","o95","o96","o108","o109","o116","o117","o119","o121","o124","o129","o130","o131"],
+  h:`<p>順序：<b>銷售與作業規劃 (S&OP) → 需求管理 → 主生產規劃 (MPS) → 物料需求規劃 (MRP)</b>（3214）</p>
+<p>聯想：<b>由粗到細、由長期到短期、從「要賣多少」一路想到「要買幾顆螺絲」</b>。</p>
+<table class="mini"><tr><th>層級</th><th>規劃對象</th><th>題目關鍵字</th></tr>
+<tr><td>S&OP</td><td>產品群（中長期）</td><td>調和銷售量與生產量、連結市場導向的銷售計劃與需求管理／MPS</td></tr>
+<tr><td>需求管理</td><td>各產品、重要次裝配品</td><td>決定需求量與交期，產出「需求計畫」</td></tr>
+<tr><td>主生產規劃 MPS</td><td>各產品</td><td>和需求管理合稱「主規劃」</td></tr>
+<tr><td>物料需求規劃 MRP</td><td>次裝配品、零件、物料（短期）</td><td>算相依需求、產生計劃中工單</td></tr></table>
+<p><b>獨立需求 vs 相依需求</b>：顧客直接要的成品是獨立需求；零件要多少，取決於成品要做多少，所以是<b>相依</b>需求 → 由 MRP 計算。</p>
+<p>流程只會往下走，「MRP 做完再做 S&OP」一定是錯的。</p>`,
+  tips:{
+    o96:`ATP 是業務接單時查交期用的（短期、單張訂單），不是 S&OP 這種中長期規劃的資料來源。`,
+    o124:`只有 S&OP 看「產品群」，需求管理已經細到各產品；計劃中的獨立需求是預測，不等於顧客的實際訂單。`,
+    o129:`「主規劃」的「主」＝需求管理＋<b>主</b>生產規劃 (MPS)。`
+  }},
+
+{ t:"工單：計劃中工單、生產工單、開立／發放、規劃時間圍籬",
+  keys:["o79","o82","o87","o88","o93","o97","o98","o99","o101","o102","o105","o112","o115","o122","o125","o128"],
+  h:`<p>工單的一生：<b>計劃中工單</b>（提案）→〔開立期間〕→ <b>生產工單・開立 (Created)</b> →〔發放期間〕→ <b>發放 (Released) 到現場</b></p>
+<ul><li><b>計劃中工單 (Planned Order)</b>＝MRP 算出來的「外購或生產的<b>提案</b>」，還不是真的工單，也不是專給衛星工廠的單據。</li>
+<li><b>開立期間</b>：「<b>開</b>」出生產工單 → 決定計劃中工單何時轉成生產工單。</li>
+<li><b>發放期間</b>：「<b>發</b>」到現場 → 決定生產工單何時發放到現場。</li>
+<li>生產工單的來源：由計劃中工單轉換，或手工輸入（13）。</li>
+<li>計劃中工單轉成生產工單時，才<b>保留</b>相依需求：變成真的工單才佔用物料。</li>
+<li>物料可用量查核的兩個時點：工單<b>產生</b>時、工單<b>發放</b>時（13）。</li>
+<li>工單從開立變成發放只是狀態改變，<b>不會</b>讓 MPS／MRP 重算；顧客訂單、BOM、發貨改變才會。</li></ul>
+<p><b>規劃時間圍籬</b>：用一道「圍籬」把最近幾天的工單圍起來，不准系統自動重排 → 圍籬內的就是確定工單 (Firmed)。</p>`,
+  tips:{
+    o125:`(3)(4) 把兩個期間對調了：<b>開</b>立期間＝「開」出生產工單；<b>發</b>放期間＝「發」到現場。`,
+    o102:`先確認料夠不夠 → 再預留機器 → 發放工單 → 最後列印給現場（1234）。`,
+    o99:`完工後先收貨，再算差異，最後結算（把成本轉到會計帳）。`
+  }},
+
+{ t:"MRP 的規劃方式、計算步驟與低階編碼",
+  keys:["o83","o94","o100","o107","o126","o127"],
+  h:`<ul><li><b>重規劃</b>：不管有沒有變動，全部重算 → 電腦負荷最大。</li>
+<li><b>淨變規劃</b>：只重算「有變動」的物料。</li>
+<li><b>規劃時間幅度內的淨變規劃</b>：有變動，而且落在規劃時間幅度內才算 → 負荷最小。</li></ul>
+<p>條件加得越多、算得越少：重規劃 ＞ 淨變 ＞ 時間幅度內淨變（1＞2＞3）。</p>
+<p>每一個品項的計算步驟（15432）：<b>淨需求 → 批量大小 → 內製或外購 → 排程 → BOM 展開</b></p>
+<p>聯想成自問自答：「<b>還缺多少？→ 一次弄幾個？→ 自己做還是買？→ 什麼時候開始？→ 往下一層看它的零件</b>」。BOM 展開放最後，因為要先知道這一層做多少，才能算下一層要多少。</p>
+<p><b>低階編碼 (LLC)</b>：同一個零件可能出現在 BOM 的不同層，就用它出現的最低那一層當編碼，讓 MRP 一層一層往下算 → 用途是<b>控制 MRP 的規劃順序</b>，不是為了省空間或讓 BOM 好看。</p>`,
+  tips:{
+    o94:`BOM 兩階段展開：第一階段只排重要件，也就是 <b>MPS 品項</b>（主生產排程只管重要的東西），第二階段才由 MRP 展開其他物料。`
+  }},
+
+{ t:"BOM、途程、工作中心、物料主檔",
+  keys:["o80","o81","o84","o89","o91","o104","o113","o114","o118","o120"],
+  h:`<p>用「什麼、怎麼、哪裡、誰」來記：</p>
+<ul><li><b>物料清單 BOM</b>＝<b>用什麼做</b>：產品由下層哪些零組件組成。</li>
+<li><b>途程 Routing</b>＝<b>怎麼做</b>：一連串作業的先後步驟，從初始狀態做到最終狀態；在一個工廠中途程是唯一的。</li>
+<li><b>工作中心</b>＝<b>在哪裡做</b>：作業被執行的地方，提供產能資訊、維護所需的員工技能水準。</li>
+<li><b>物料主檔</b>＝每個料的<b>身分證</b>：一物一料號，依功能部門分類，是各部門資料的連結。</li></ul>
+<p>關係：一個途程有多個作業、可經過多個工作中心；一個工作中心可被多個途程使用。但「一個作業包含多個途程」是倒過來了：作業只是途程裡的一個步驟。</p>
+<p>生產規劃的基本資料＝物料主檔、BOM、途程、工作中心。「物料扣帳、總帳會計文件」屬於會計；「可用產能」是算出來的結果，都不是基本資料。</p>`},
+
+{ t:"採購類型：MRO、支持生產、資本設備、半成品",
+  keys:["o145","o147","o154","o155","o160","o161","o171","o176"],
+  h:`<table class="mini"><tr><th>類型</th><th>例子</th><th>特徵</th></tr>
+<tr><td>MRO 維修與作業</td><td>文具、清潔用品、<b>機器備用零件</b></td><td>次數多、量少、分散各處很難盤點；靠集中採購、定期契約改善；成本較不受重視</td></tr>
+<tr><td>支持生產</td><td>包裝紙箱、捆帶、儲藏盒</td><td>庫存的主要項目，佔用大量倉庫空間</td></tr>
+<tr><td>資本設備</td><td>生產設備、發電機、辦公傢俱、電腦</td><td>金額龐大，屬於<b>固定（非流動）</b>資產</td></tr>
+<tr><td>半成品／零組件</td><td>外包零件</td><td>為確保品質常與供應商<b>策略聯盟</b>；因外包趨勢而<b>增加</b></td></tr></table>
+<p>最常錯：「機器的<b>備用零件</b>」是拿來<b>維修</b>的 → MRO，不是資本設備。MRO 都是零星小東西，不會跟供應商組策略聯盟。</p>`},
+
+{ t:"採購流程順序、內製與外購",
+  keys:["o139","o152","o158","o166","o167","o169","o172","o177"],
+  h:`<p>採購週期 (Monczka)：<b>需求辨認 → 評估可能來源 → 選擇來源 → 下單與收貨 → 供應商績效評估</b></p>
+<p>聯想成網購：「列出要買什麼 → 比較幾家店 → 決定買哪家 → 下單收貨 → 給評價」。一定是先<b>評估</b>一群候選，再<b>選擇</b>其中一家；評價永遠在最後。</p>
+<p><b>內製 vs 外購</b>：</p>
+<ul><li>內製：要自己蓋產線 → <b>投資成本高</b>，但控制性高。</li>
+<li>外購：要等別人做 → <b>前置時間較長</b>、選供應商有風險、容易失去控制；適合內製固定成本太高的時候。</li></ul>
+<p>影響內製決策的成本（234）：作業成本、工廠營運成本、整體作業成本，都是「自己做才會花的錢」。購買成本、庫存成本不算。</p>`},
+
+{ t:"盤點：定期盤點 vs 循環盤點",
+  keys:["o192","o196","o209"],
+  h:`<ul><li><b>定期盤點</b>：選定一天、<b>關閉倉庫</b>、動員所有人力一次點完，像年終大掃除。</li>
+<li><b>循環盤點</b>（又叫週期盤點，Cycle Counting）：<b>不關倉庫</b>，逐區、逐類輪流點，像每天只擦一個房間。</li></ul>
+<p>「循環」＝一直轉、不停下來 → 倉庫照常營業。題目只要寫「不關閉倉庫」，就是循環盤點。</p>`},
+
+{ t:"ABC 分析（存貨）vs ABC 作業成本制",
+  keys:["o180","o185","o198","o199","o202","o218","o300","o328","o427"],
+  h:`<p>名字一樣，<b>理論完全不同</b>：</p>
+<ul><li><b>ABC 分析（第六章，存貨）</b>：用柏拉圖 80-20 法則，依<b>年度使用金額＝年使用量 × 單價</b>把存貨分成 A、B、C 三類，重點管理 A 類。</li>
+<li><b>ABC 作業成本制（第八章，Activity-Based Costing）</b>：以<b>作業</b>為基礎分攤製造費用；不只適用於製造業。</li></ul>
+<p>A 類＝「<b>少數品項、多數金額</b>」：品項只佔 10–30%，價值卻佔 70–80%。重點管理高流通、高單價的東西。</p>
+<p>用字陷阱：分類基準是「經濟效益」與「所消耗的<b>經濟資源</b>」；改成「費用資源」就是錯的。</p>`,
+  tips:{ o218:`8000 ÷ 400 ＝ <b>20</b>。` }},
+
+{ t:"安全存量、服務水準、存貨周轉率、呆料與廢料",
+  keys:["o183","o189","o190","o191","o193","o195","o197","o203","o212","o214","o216","o220","o224","o225","o235","o237","o240","o246","o251"],
+  h:`<p><b>安全存量</b>是用來應付「不確定」的：需求率變動、前置時間變動。想達到的<b>服務水準</b>越高，就要多備一點。所以影響因素只有：<b>服務水準、需求變異、前置時間變異</b>（加上平均需求、平均前置時間）。獲利率、損益兩平、勞工人數都無關。</p>
+<p><b>服務水準</b>＝顧客需求能由庫存<b>直接供貨</b>的比率＝供貨率＝訂單滿足率＝1 − 缺貨率。100 人中 87 人直接拿到 → 87%；缺貨率 10% → 90%。</p>
+<p><b>存貨周轉率</b>＝一年的銷貨量 ÷ 平均庫存量 → 貨轉得越快越好，<b>越大越好</b>。跟「年度平均使用量」無關。</p>
+<p><b>呆料 vs 廢料</b>：呆料＝東西還能用，只是沒人用 → 用<b>周轉率</b>判斷；廢料＝功能已經喪失 → 看<b>功能</b>，不看周轉率。</p>`,
+  tips:{
+    o251:`標準儲存日數 ＝ 250 ÷ 周轉率，要大於 25 天 ⇔ 周轉率小於 10 → 只有 <b>8</b>。`,
+    o216:`平均存貨用<b>最高存量</b>算：1800 ÷ 2 ＝ 900，45000 ÷ 900 ＝ <b>50</b>。拿 Q*＝2400 去算就會掉進陷阱。`,
+    o224:`20 人中 13 人直接供貨＝服務水準 65%，缺貨率 ＝ 1 − 65% ＝ <b>35%</b>。`,
+    o190:`訂購時機除了成本，還要多考慮<b>服務水準</b>，因為它決定安全庫存要放多少。`
+  }},
+
+{ t:"EOQ／EPQ：總成本的組成與最佳批量",
+  keys:["o181","o187","o194","o201","o223","o227","o228","o229","o230","o244","o252"],
+  h:`<p><b>EOQ 年度總成本</b>＝購買成本＋訂購（準備）成本＋持有成本（134；「倉儲成本」不另列）。</p>
+<p><b>EPQ 年度總成本</b>＝生產成本＋生產設置成本＋存貨持有成本。也就是把 EOQ 的「買」換成「做」。</p>
+<p><b>但算最佳批量 Q* 時與購買成本無關</b>：Q* ＝ √(2DS ÷ H)，只看年需求 D、每次訂購／設置成本 S、單位持有成本 H。單價固定，一次買多買少單價都一樣，所以不影響「一次要買幾個」。</p>
+<p><b>生產設置成本</b>＝每次開工前的準備，例如整理機器、換模具。</p>
+<p>EOQ 的基本假設：需求確定、前置時間為零、不受空間或資金限制、<b>不考慮數量折扣</b>。</p>`,
+  tips:{
+    o223:`EPQ ＝ √(2DS ÷ [H × (1 − d／p)]) ＝ √(2 × 80 × 10 ÷ [4 × (1 − 80／90)]) ＝ √3600 ＝ <b>60</b>。`,
+    o227:`320 ＋ 8 ＋ 8 ＝ <b>336</b>。在最佳批量下，訂購成本會剛好等於持有成本。`,
+    o230:`320 ＋ 8 ＋ 8 ＝ <b>336</b>。在最佳批量下，設置成本會剛好等於持有成本。`,
+    o228:`訂購次數 ＝ 一年要多少 ÷ 一次買多少 ＝ 64 ÷ 8 ＝ <b>8</b> 次。`,
+    o229:`一年訂 64 ÷ 8 ＝ 8 次，240 天平均分成 8 段 → 每 <b>30</b> 天訂一次。`,
+    o187:`訂購時機看的是前置時間、需求率、安全庫存（什麼時候會用完）；<b>存貨周轉率</b>是事後評估庫存流動的指標，跟決定何時訂貨無關。`
+  }},
+
+{ t:"收料作業：誰前誰後",
+  keys:["o247","o253","o254"],
+  h:`<p>順序：<b>採購 → 收料 → 倉儲</b>。所以收料是採購的<b>後續</b>作業、倉儲的<b>前置</b>作業。</p>
+<p>聯想：東西買了（採購）才會送來（收料），收進來之後才放進倉庫（倉儲）。選項把前置、後續講反，或扯到成本控制模組，都是錯的。</p>`},
+
+{ t:"會計循環七階段與結帳",
+  keys:["o256","o257","o258","o261","o264","o270","o273","o285","o288"],
+  h:`<p>七階段（1234567）：<b>確認 → 分錄 → 過帳 → 試算 → 調整 → 結帳 → 編表</b></p>
+<p>聯想成寫日記：</p>
+<ul><li><b>確認</b>：這件事要不要記？（是不是財會要處理的經濟事件）</li>
+<li><b>分錄</b>：寫進日記本。</li>
+<li><b>過帳</b>：把日記簿抄到總帳和各分類帳。</li>
+<li><b>試算</b>：加總看借貸平不平。只抓得到「借貸不平」，抓不到所有錯誤。</li>
+<li><b>調整</b>：期末把跟現實不符的數字修正，例如預付保險費隨時間經過變成保險費用。</li>
+<li><b>結帳</b>：把這一期的收入、費用歸零。</li>
+<li><b>編表</b>：出財務報表。</li></ul>
+<p><b>結帳只結清「虛帳戶」</b>：收入、費用是「這一期的成績」，期末歸零，才能分清每一期的績效權責。資產、負債、權益是「實帳戶」，餘額要帶到下一期，<b>不歸零</b>。</p>`},
+
+{ t:"財會與其他模組的連動：應收 vs 應付",
+  keys:["o52","o260","o262","o263","o268","o271","o274","o275","o278","o279","o286","o289","o290","o295","b10"],
+  h:`<p><b>賣東西 → 別人欠我 → 應收；買東西 → 我欠別人 → 應付</b></p>
+<ul><li>銷售模組 (SD) 交貨 → <b>應收</b>帳款、收益增加</li>
+<li>物料管理 (MM) 採購驗收 → <b>應付</b>帳款</li>
+<li>人力資源 (HR) 發薪 → <b>應付薪資</b>、薪資費用</li>
+<li>存貨管理 (IM) 交貨 → 成品存貨價值減少</li></ul>
+<p>只要題目把「交貨」配「應付」、把「採購」配「應收」、或讓 HR 去動原物料，就是錯的。</p>
+<p><b>出貨扣帳後會自動發生</b>（124）：存貨價值減少、MRP 需求量減少（或應收帳款增加）、產生成本會計文件。保留存貨是<b>減少</b>不是增加；也不會產生計劃訂單或採購單。</p>
+<p>應收、應付都是一年內要收付的<b>流動</b>項目：應收不是固定資產，應付不是長期負債。</p>
+<p>供應商明細帳的會計科目，由<b>採購人員</b>建立廠商資料時一起建：誰跟供應商打交道，就由誰建。</p>`},
+
+{ t:"成本控制 (CO) 模組的副模組",
+  keys:["o297","o299","o301","o306","o307","o314","o315","o320","o322","o330","o343"],
+  h:`<p>每個副模組都看它「從什麼角度看費用」：</p>
+<table class="mini"><tr><th>副模組</th><th>觀點（成本標的）</th><th>記法</th></tr>
+<tr><td>成本中心會計</td><td><b>部門</b>（組織觀點）</td><td>提供責任會計：哪個部門花了多少</td></tr>
+<tr><td>內部訂單會計</td><td><b>事件、專案</b></td><td>壽命比成本中心短；不等於成本中心會計</td></tr>
+<tr><td>作業成本制</td><td><b>流程</b></td><td>找出流程再造的機會</td></tr>
+<tr><td>產品成本控制</td><td><b>產品</b></td><td>估標準成本；和 MM、PP 整合，算實際成本與差異</td></tr>
+<tr><td>獲利能力分析</td><td><b>市場區隔</b></td><td>不是部門</td></tr></table>
+<p>CO 是<b>內部的管理會計</b>：給內部主管做決策、不必遵守一般公認會計原則、提供貨幣與非貨幣資料、可以只分析部門或產品、以分析資訊為主。<b>對外發布財報</b>是財務會計 (FI) 的事；「交易流程自動化」也不是 CO 的重點。</p>`},
+
+{ t:"成本制度與管理會計工具",
+  keys:["o298","o302","o303","o309","o310","o311","o312","o313","o317","o318","o319","o321","o325","o326","o329","o331","o337","o338","o339"],
+  h:`<ul><li><b>分批成本制</b>：「批」＝一張一張的訂單 → 適合<b>訂單式生產</b>，成本標的是<b>生產訂單</b>，用分批成本單彙集。</li>
+<li><b>分步成本制</b>：「步」＝一步一步的製程 → 適合<b>連續式生產</b>，成本標的是<b>生產部門或製程</b>。</li>
+<li><b>作業成本制</b>：以作業分攤製造費用 (Cooper & Kaplan) → 最能忠實反映成本分攤。</li>
+<li><b>標準成本制</b>：用科學方法預估「良好效率下應有的成本」，再拿來比差異。</li></ul>
+<p>分析工具，看它「算出什麼」：</p>
+<ul><li>成本習性分析 → 把半變動成本拆成固定＋變動</li>
+<li>成本數量利潤分析 (CVP) → 算<b>損益兩平點</b>，看售價、成本、銷售組合對利潤的影響（標準成本制算不出損益兩平點）</li>
+<li>變動成本法 → 編邊際貢獻式損益表；只有變動製造成本算產品成本，<b>固定製造費用不算</b></li>
+<li>資本支出決策 → 金額大、時間長，要考慮貨幣時間價值 → <b>淨現值法、內部報酬率法</b>（會計報酬率法、還本期間法沒有考慮）</li>
+<li>標竿制度 → 跟做得最好的企業比</li>
+<li>平衡計分卡 → 財務、顧客、內部流程、學習成長四個構面，<b>沒有</b>「成本」構面</li></ul>`},
+
+{ t:"品質成本、作業成本制的構面、製造費用多／少分攤",
+  keys:["o304","o305","o308","o323","o324","o327","o332","o333","o334","o335","o340","o341","o344"],
+  h:`<p><b>品質成本四類</b>，照時間順序想：事前防範（<b>預防</b>）→ 檢查（<b>評鑑</b>，例如製成品檢驗）→ 出廠前發現壞掉（<b>內部失敗</b>）→ 到顧客手上才壞掉（<b>外部失敗</b>）。「可控制成本」不是品質成本的分類。</p>
+<p><b>作業成本制只有兩個構面</b>：<b>成本分派構面</b>（兩階段：資源 → 作業 → 成本標的）＋<b>流程構面</b>（拿來改善作業）。說「三個構面」就錯。衡量成本標的耗用多少作業，用的是<b>作業動因</b>。</p>
+<p><b>多分攤 vs 少分攤</b>，比的是「實際發生」和「已分攤」：</p>
+<ul><li>實際 ＞ 已分攤 → 分得不夠 → <b>少分攤</b></li>
+<li>實際 ＜ 已分攤 → 分太多了 → <b>多分攤</b></li></ul>
+<p>差額要調整到還背著製造費用的帳戶：在製品、製成品、銷貨成本（124）。直接材料本來就沒有製造費用，不用調。</p>
+<p>實際發生的製造費用記在<b>製造費用統制帳</b>；用預計分攤率分給產品的，記在<b>已分攤製造費用</b>（在製品）。</p>`},
+
+{ t:"人力資源再造：流程取向 vs 功能取向",
+  keys:["o346","o349","o351","o352","o353","o354","o357","o358","o359","o360","o361","o368","o369"],
+  h:`<table class="mini"><tr><th>流程取向</th><th>功能取向</th></tr>
+<tr><td>從客戶（員工）服務的角度出發、<b>單一業務窗口</b>、<b>員工賦能</b>、員工自助服務、分權</td><td>集權管理、分層稽控、工作簡單化</td></tr></table>
+<p>聯想：流程取向＝「<b>一個窗口辦到好，員工自己來</b>」；功能取向＝「一層一層蓋章」。人力資源再造／改善本身就是<b>流程取向</b>。</p>
+<p>效益分辨：減少<b>低附加價值</b>的工作 → 生產力提升效益；減少<b>資料輸入錯誤或延遲</b> → 人力資源系統使用效益。</p>
+<p>員工自助服務的目的：流程改善、確保資料品質、員工賦能。官方答案<b>不含</b>「降低成本」。</p>
+<p>只是小幅修改制度或流程 → 企業流程<b>改善</b>（不是整合）。</p>
+<p>HR 跟財會（薪資）、生產、專案（人力派工）都有資料往來，最少往來的是<b>物料管理</b>。</p>`},
+
+{ t:"雲端運算：特性、服務模型、部署模型、TCO",
+  keys:["o398","o399","o400","o401","o404","o405","o408","o411","o412","o413","o414","o415","o416","o418","o419","o420","o421"],
+  h:`<p><b>5 個基本特性</b>：隨選自助、無所不在的網路存取、資源共用、快速彈性、<b>可測量</b>的服務。陷阱：「不可測量」「集中式」「視覺化」。</p>
+<p><b>3 種服務模型</b>：IaaS（基礎設施）→ PaaS（平台）→ SaaS（軟體），像蓋房子的地基、房子、家具。DaaS、HaaS、CaaS 都是干擾選項。</p>
+<p><b>4 種部署模型</b>：私有雲、社群雲、公有雲、混合雲。「公司雲」「工業雲」都不存在。</p>
+<ul><li>私有雲：<b>單一組織</b>專用（可以自己管，也可以交給第三方管）</li>
+<li>社群雲：有<b>共同關注</b>的特定社群專用，例如台灣的健康雲</li>
+<li>公有雲：開放給一般大眾</li>
+<li>混合雲：兩種以上的雲組合</li></ul>
+<p><b>TCO 整體擁有成本 ＝ TCA 整體獲得成本 ＋ 營運成本</b>：「買下來的錢＋養它的錢」。不含折舊、機會成本、銷貨成本。</p>
+<p>雲端的核心技術：伺服器虛擬化＋SaaS＋SOA（124，不含網格運算）。SOA 的三個角色：服務要求者、服務登錄、服務提供者，沒有「代理者」。</p>
+<p>巨量資料 3V：Volume 大量、Velocity 高速、Variety 多樣，沒有「視覺化」。</p>
+<p>雲端 ERP（又稱隨選 ERP）以 SaaS 為基礎，透過網路使用，<b>不是</b>集中式主機加終端機的架構。</p>`},
+
+{ t:"資料倉儲與 ERP 的延伸",
+  keys:["o393","o394","o395","o396","o397"],
+  h:`<p><b>資料倉儲四特性</b>：主題導向、整合性、時間變異性、<b>非</b>揮發性。選項寫「揮發性」「時間不變性」都是反的。</p>
+<p>聯想：資料倉儲是「<b>歷史資料的倉庫</b>」：資料存進去就不會再被改（非揮發），每筆資料都帶著時間點、會隨著時間一直累積（時間變異）。</p>
+<p><b>資料市場 (Data Mart)</b>＝從資料倉儲複製出來的一部分子集合，就像大倉庫旁邊的小賣場。資料倉儲是各種延伸 ERP 功能的<b>基礎</b>。</p>
+<p><b>縱向 vs 橫向延伸</b>：縱向＝<b>往上</b>延伸到決策層（DSS、EIS）；橫向＝<b>往外</b>連到顧客、供應商（CRM、SCM）。</p>
+<p>SCM 的核心＝整合的生產規劃與排程。</p>`},
+
+{ t:"銷售組織架構與主檔資料",
+  keys:["o16","o18","o38","o39","o63","o64","o65","o66","o74","b14"],
+  h:`<p><b>銷售區域 ＝ 銷售組織 ＋ 配銷管道 ＋ 部門</b>：誰在賣 ＋ 透過什麼通路賣 ＋ 賣哪一條產品線。</p>
+<ul><li>批發商、零售商、直銷商 → <b>配銷管道</b>：貨流到顧客手上的通路。</li>
+<li>負責不同產品線或產品家族 → <b>部門</b>。</li></ul>
+<p>出貨組織＝出貨點＋裝載點（23）。</p>
+<p>顧客主檔的三層：一般資料、銷售與配銷資料、<b>公司代碼資料</b>。財會資料放在公司代碼資料，因為公司代碼就是一個會計主體。</p>
+<p>優先權：資料越具體越優先 → <b>顧客-產品資訊記錄</b>（特定顧客 × 特定產品）高於顧客主檔、物料主檔。</p>`}
+];
+const MEMO_OF = {};
+MEMO.forEach((g,i)=>g.keys.forEach(k=>{ if(BY[k] && MEMO_OF[k]===undefined) MEMO_OF[k]=i; }));
+const memoTip = key => { const i=MEMO_OF[key]; return i===undefined ? "" : ((MEMO[i].tips||{})[key] || ""); };
+function memoHTML(key){
+  const i = MEMO_OF[key]; if(i===undefined) return "";
+  const g = MEMO[i], tip = memoTip(key);
+  return `<details class="memo" ${prefs.memoOpen===false?"":"open"}><summary>🧠 聯想記憶｜${g.t}</summary>${tip?`<div class="memo-tip"><b>這題的關鍵：</b>${tip}</div>`:""}${g.h}</details>`;
+}
+
 function scopeKeys(scope){
   if(scope==="all") return OFF.map(q=>"o"+q.n);
   if(scope==="book") return Q.map(q=>"b"+q.id);
@@ -482,14 +823,89 @@ function newSession(kind, o){
   let keys;
   if(kind==="wrong") keys = ALL.filter(q=>wrongSet.has(q.key)).map(q=>q.key);
   else if(kind==="quiz"){ keys = shuffle(scopeKeys(o.scope)); if(o.n && o.n<keys.length) keys = keys.slice(0,o.n); }
-  else if(kind==="search") keys = [...o.keys];
+  else if(kind==="search" || kind==="memo") keys = [...o.keys];
   else keys = scopeKeys(prefs.scope);
   if(kind!=="quiz" && o.random) keys = shuffle(keys);
   let idx = 0;
   if(kind==="practice" && !o.random && o.resume){ idx = Math.min(prefs.pos[prefs.scope]||0, Math.max(0,keys.length-1)); }
   gridOpen = keys.length <= 80;
-  return { kind, keys, idx, answers:{}, random:!!o.random, submitted:false, start:Date.now(), removed:{}, scope:o.scope, n:o.n, baseKeys:o.keys, term:o.term };
+  return { kind, keys, idx, answers:{}, random:!!o.random, submitted:false, start:Date.now(), removed:{}, scope:o.scope, n:o.n, baseKeys:o.keys, term:o.term, shuf:!!prefs.shuffleOpts, perm:{} };
 }
+
+/* ===================== 選項隨機排列 ===================== */
+// 「以上皆非」這類選項跟位置有關，固定在原位；其餘選項洗牌。作答紀錄一律存原始選項編號。
+const PIN_OPT = /以上(皆|都|觀念)/;
+function optOrder(s, key){
+  const q = BY[key], id = q.opts.map((_,i)=>i);
+  if(!s.shuf) return id;
+  if(!s.perm[key]){
+    const sh = shuffle(id.filter(i=>!PIN_OPT.test(q.opts[i]))); let k = 0;
+    s.perm[key] = id.map(i => PIN_OPT.test(q.opts[i]) ? i : sh[k++]);
+  }
+  return s.perm[key];
+}
+const dispL = (s, key, oi) => { const d = L[optOrder(s,key).indexOf(oi)]; return d===L[oi] ? d : `${d}（原題 ${L[oi]}）`; };
+
+/* ===================== 語音朗讀 ===================== */
+const TTS_OK = typeof window!=="undefined" && "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
+let ttsOn = null, ttsToken = 0;   // 正在朗讀："q" 題目 / "e" 解析 / null
+if(TTS_OK){ speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = ()=>speechSynthesis.getVoices(); }
+function ttsVoice(){
+  const v = speechSynthesis.getVoices();
+  return v.find(x=>/zh[-_]TW/i.test(x.lang)) || v.find(x=>/zh[-_](Hant|HK)/i.test(x.lang)) || v.find(x=>/^zh/i.test(x.lang)) || null;
+}
+const plain = h => String(h)
+  .replace(/<br\s*\/?>/gi,"。").replace(/<\/(p|li|div|tr|h\d)>/gi,"。").replace(/<[^>]*>/g," ")
+  .replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">")
+  .replace(/_{2,}|（\s*）|\(\s*\)/g,"空格").replace(/→/g,"，").replace(/\s+/g," ").replace(/(\s*。\s*)+/g,"。").trim();
+// Chrome 朗讀太長的句子會中斷，所以切成短句依序排入
+function ttsChunks(t){
+  const out = [];
+  t.split(/(?<=[。！？；!?;])/).forEach(p=>{
+    p = p.trim();
+    while(p.length>150){ let cut = p.lastIndexOf("，",150); if(cut<40) cut = 149; out.push(p.slice(0,cut+1)); p = p.slice(cut+1); }
+    if(p) out.push(p);
+  });
+  return out;
+}
+function ttsText(s, which){
+  const key = s.keys[s.idx], q = BY[key], order = optOrder(s,key);
+  if(which==="q") return `第 ${s.idx+1} 題。${plain(q.stem)}。` + (q.items ? q.items.map(plain).join("。")+"。" : "") +
+    `選項：` + order.map((i,p)=>`${L[p]}，${plain(q.opts[i])}`).join("。") + "。";
+  const mi = MEMO_OF[key], memo = mi===undefined ? "" : `聯想記憶：${plain(memoTip(key))}。${plain(MEMO[mi].h)}`;
+  return `正確答案是 ${L[order.indexOf(q.ans)]}，${plain(q.opts[q.ans])}。${plain(expHTML(q))}。${memo}`;
+}
+function ttsSpeak(which, text){
+  const busy = speechSynthesis.speaking || speechSynthesis.pending;
+  ttsStop();
+  const tok = ++ttsToken, parts = ttsChunks(text), voice = ttsVoice();
+  ttsOn = which; ttsSync();
+  const go = () => {
+    if(tok!==ttsToken) return;
+    parts.forEach((p,i)=>{
+      const u = new SpeechSynthesisUtterance(p);
+      u.lang = voice ? voice.lang : "zh-TW"; if(voice) u.voice = voice; u.rate = prefs.ttsRate || 1;
+      if(i===parts.length-1) u.onend = u.onerror = ()=>{ if(tok===ttsToken){ ttsOn = null; ttsSync(); } };
+      speechSynthesis.speak(u);
+    });
+  };
+  // Chrome/Edge 在 cancel() 後立刻 speak() 偶爾會沒聲音，稍等一下再念
+  busy ? setTimeout(go, 80) : go();
+}
+function ttsStop(){ ttsToken++; ttsOn = null; if(TTS_OK) speechSynthesis.cancel(); ttsSync(); }
+function ttsToggle(which){
+  if(ttsOn===which) return ttsStop();
+  const s = curSession(); if(!s || !s.keys.length) return;
+  ttsSpeak(which, ttsText(s, which));
+}
+const ttsLabel = w => ttsOn===w ? "⏹ 停止朗讀" : (w==="q" ? "🔊 朗讀題目" : "🔊 朗讀解析");
+const ttsBtn = w => TTS_OK ? `<button class="btn sm tts${ttsOn===w?" on":""}" data-tts="${w}">${ttsLabel(w)}</button>` : "";
+function ttsSync(){
+  if(typeof document==="undefined" || !document.querySelectorAll) return;
+  document.querySelectorAll("[data-tts]").forEach(b=>{ b.classList.toggle("on", b.dataset.tts===ttsOn); b.textContent = ttsLabel(b.dataset.tts); });
+}
+const RATES = [0.8,1,1.2,1.5];
+const ttsRateSel = () => TTS_OK ? `<select id="ttsRate" aria-label="朗讀語速">${RATES.map(r=>`<option value="${r}" ${r===(prefs.ttsRate||1)?"selected":""}>語速 ${r}×</option>`).join("")}</select>` : "";
 
 /* ===================== 關鍵字搜尋 ===================== */
 // 去除 HTML 標籤、全形轉半形、不分大小寫
@@ -576,7 +992,7 @@ function renderSearchResults(){
       ${q.opts.map((o,j)=>`<div class="optline">${L[j]}. ${hl(o)}</div>`).join("")}
       <details class="srch-ans" ${expOnly?"open":""}><summary>${expOnly?"答案與解析（關鍵字出現在解析中）":"看答案與解析"}</summary>
         <div class="optline c">正確答案：${L[q.ans]}. ${q.opts[q.ans]}</div>
-        <div class="explain ok">${hl(expHTML(q))}</div>
+        <div class="explain ok">${hl(expHTML(q))}${memoHTML(k)}</div>
       </details>
     </div>`;
   }).join("");
@@ -595,23 +1011,67 @@ function startSearchPractice(i){
   srchPracticing = true; render(); window.scrollTo({top:0});
 }
 
+/* ===================== 聯想記憶分頁 ===================== */
+let memoPracticing = false;
+const memoKeys = i => MEMO[i].keys.filter(k=>BY[k]);
+const memoMiss = i => memoKeys(i).filter(k=>wrongSet.has(k) || (history[k]&&history[k].w>0)).length;
+const memoShort = i => MEMO[i].t.split("：")[0];
+function renderMemo(){
+  if(memoPracticing && sessions.memo){ renderPractice("memo"); return; }
+  const order = MEMO.map((_,i)=>i);
+  if(prefs.memoSort) order.sort((a,b)=>memoMiss(b)-memoMiss(a) || a-b);
+  const total = new Set(MEMO.flatMap((_,i)=>memoKeys(i))).size;
+  const cards = order.map(i=>{
+    const g = MEMO[i], keys = memoKeys(i), miss = memoMiss(i);
+    const tipKeys = keys.filter(k=>g.tips && g.tips[k]);
+    const tips = tipKeys.map(k=>{
+      const q = BY[k], label = q.bank==="official" ? `官方第 ${q.no} 題` : `課本第 ${q.no} 題`;
+      return `<div class="tiprow"><b>${label}</b>：${g.tips[k]}</div>`;
+    }).join("");
+    return `<div class="card memo-card" id="memo-${i}">
+      <div class="qhead"><h3>${g.t}</h3><span class="chips">
+        <span class="chip">${keys.length} 題</span>${miss?`<span class="chip miss">錯過 ${miss} 題</span>`:""}
+        <button class="btn sm primary" data-memo="${i}">練這組 →</button></span></div>
+      ${g.h}
+      ${tips?`<details class="memo-qs"><summary>個別題目的關鍵提示（${tipKeys.length}）</summary>${tips}</details>`:""}
+    </div>`;
+  }).join("");
+  $("#view").innerHTML = `
+  <div class="card">
+    <div class="note" style="margin-bottom:8px">把最容易混淆的觀念整理成 ${MEMO.length} 組，涵蓋 ${total} 道題目。在練習、錯題本、測驗檢討答完題後，解析下方也會出現對應的「🧠 聯想記憶」。</div>
+    <label class="toggle"><input type="checkbox" id="memoSort" ${prefs.memoSort?"checked":""}> 依我錯過的題數排序</label>
+    <div class="memo-toc">${order.map(i=>`<a class="kw" href="#memo-${i}">${memoShort(i)}${memoMiss(i)?`<small>✗${memoMiss(i)}</small>`:""}</a>`).join("")}</div>
+  </div>
+  ${cards}`;
+}
+function startMemoPractice(i){
+  const keys = memoKeys(i); if(!keys.length) return;
+  sessions.memo = newSession("memo", {keys, term:memoShort(i)});
+  gridOpen = keys.length <= 80;
+  memoPracticing = true; render(); window.scrollTo({top:0});
+}
+
 /* ===================== 單題渲染 ===================== */
 function questionHTML(s){
   const key = s.keys[s.idx], q = BY[key];
   const picked = s.answers[key];
   const reveal = s.kind!=="quiz" ? picked!==undefined : s.submitted;
-  const opts = q.opts.map((o,i)=>{
+  const order = optOrder(s, key), moved = order.some((oi,p)=>oi!==p);
+  const opts = order.map((i,pos)=>{
+    const o = q.opts[i];
     let cls = "opt";
     if(reveal){ if(i===q.ans) cls+=" correct"; else if(i===picked) cls+=" wrong"; }
     else if(i===picked) cls+=" picked";
     const dis = (s.kind!=="quiz" && reveal) || s.submitted ? "disabled" : "";
-    return `<button class="${cls}" data-pick="${i}" ${dis}><span class="key">${L[i]}</span><span>${o}</span></button>`;
+    const orig = reveal && moved ? ` <small class="orig">原 ${L[i]}</small>` : "";
+    return `<button class="${cls}" data-pick="${i}" ${dis}><span class="key">${L[pos]}</span><span>${o}${orig}</span></button>`;
   }).join("");
   let exp = "";
   if(reveal){
     const ok = picked===q.ans;
     const extra = (s.kind==="wrong" && ok && s.removed[key]) ? "　已從錯題本移除 ✓" : "";
-    exp = `<div class="explain ${ok?"ok":"bad"}"><div class="verdict">${ok?"答對了！":"答錯了"}　正確答案：${L[q.ans]}${extra}</div>${expHTML(q)}</div>`;
+    const origNote = moved && /(^|[^A-Za-z])[A-D]([^A-Za-z]|$)/.test(plain(q.exp)) ? `<div class="orignote">選項已打亂：解析中的 A–D 指的是選項旁標示的「原」順序。</div>` : "";
+    exp = `<div class="explain ${ok?"ok":"bad"}"><div class="verdict">${ok?"答對了！":"答錯了"}　正確答案：${L[order.indexOf(q.ans)]}${moved?`（原題 ${L[q.ans]}）`:""}${extra}</div>${expHTML(q)}${memoHTML(key)}${origNote}<div class="ttsrow" style="margin:8px 0 0">${ttsBtn("e")}</div></div>`;
   }
   const answeredN = s.keys.filter(k=>s.answers[k]!==undefined).length;
   const grid = s.keys.map((k,i)=>{
@@ -624,6 +1084,7 @@ function questionHTML(s){
   return `
   <div class="qhead"><span class="qno">第 ${s.idx+1} / ${s.keys.length} 題</span><span class="chips">${srcChips(q, reveal)}</span></div>
   <div class="chlabel">${q.ch}</div>
+  ${TTS_OK ? `<div class="ttsrow">${ttsBtn("q")}${ttsRateSel()}</div>` : ""}
   <p class="stem">${q.stem}</p>${itemsHTML(q)}
   <div class="opts">${opts}</div>${exp}
   <div class="navrow">
@@ -632,7 +1093,7 @@ function questionHTML(s){
     <button class="btn" data-nav="1" ${s.idx===s.keys.length-1?"disabled":""}>下一題 →</button>
   </div>
   <details class="navgrid" ${gridOpen?"open":""}><summary>題目導覽（已作答 ${answeredN} / ${s.keys.length}）</summary><div class="grid">${grid}</div></details>
-  <div class="hint">鍵盤快捷鍵：A–D 或 1–4 選答，← → 切換題目</div>`;
+  <div class="hint">鍵盤快捷鍵：A–D 或 1–4 選答，← → 切換題目${TTS_OK?"，R 朗讀題目":""}</div>`;
 }
 
 /* ===================== 各分頁 ===================== */
@@ -652,12 +1113,15 @@ function renderPractice(kind){
     ? `<div class="note">共 ${s.keys.length} 題。在這裡答對的題目會自動從錯題本移除；答錯則繼續保留。</div>`
     : kind==="search"
     ? `<div class="toolbar"><div class="left"><button class="btn" data-act="srchBack">← 回到搜尋結果</button><span class="chip">搜尋「${esc(s.term)}」・共 ${s.keys.length} 題</span></div></div>`
+    : kind==="memo"
+    ? `<div class="toolbar"><div class="left"><button class="btn" data-act="memoBack">← 回到聯想記憶</button><span class="chip">${esc(s.term)}・共 ${s.keys.length} 題</span></div></div>`
     : "";
   $("#view").innerHTML = `${top}
   <div class="toolbar">
     <div class="left">
       ${kind==="practice" ? `<select id="scopeSel" aria-label="選擇章節">${scopeOptions(prefs.scope)}</select>` : ""}
-      <label class="toggle"><input type="checkbox" id="rnd" ${s.random?"checked":""}> 隨機順序</label>
+      <label class="toggle"><input type="checkbox" id="rnd" ${s.random?"checked":""}> 題目隨機</label>
+      <label class="toggle"><input type="checkbox" id="shufOpt" ${s.shuf?"checked":""}> 選項 ABCD 隨機</label>
     </div>
     <div class="left">
       <span class="chip">本輪已答 ${answered}・答對 ${correct}</span>
@@ -678,6 +1142,7 @@ function renderQuiz(){
       <div style="display:grid;gap:10px;max-width:420px">
         <label>出題範圍<br><select id="quizScope" style="width:100%">${scopeOptions(prefs.quizScope)}</select></label>
         <label>題數<br><select id="quizN" style="width:100%">${nOpts}</select></label>
+        <label class="toggle"><input type="checkbox" id="quizShuf" ${prefs.shuffleOpts?"checked":""}> 選項 ABCD 隨機排列</label>
       </div>
       <button class="btn primary" data-act="startQuiz" style="margin-top:16px">開始測驗</button>
     </div>`;
@@ -705,9 +1170,9 @@ function renderResult(s){
       <div class="qhead"><span class="qno">${i+1}. ${ok?"✅":"❌"}</span><span class="chips">${srcChips(q,true)}</span></div>
       <div class="chlabel">${q.ch}</div>
       <p class="stem" style="font-size:1rem">${q.stem}</p>${itemsHTML(q)}
-      <div class="ans-line">你的答案：<span class="${ok?"c":"w"}">${a===undefined?"未作答":L[a]+". "+q.opts[a]}</span></div>
-      ${ok?"":`<div class="ans-line">正確答案：<span class="c">${L[q.ans]}. ${q.opts[q.ans]}</span></div>`}
-      <div class="explain ${ok?"ok":"bad"}">${expHTML(q)}</div>
+      <div class="ans-line">你的答案：<span class="${ok?"c":"w"}">${a===undefined?"未作答":dispL(s,k,a)+". "+q.opts[a]}</span></div>
+      ${ok?"":`<div class="ans-line">正確答案：<span class="c">${dispL(s,k,q.ans)}. ${q.opts[q.ans]}</span></div>`}
+      <div class="explain ${ok?"ok":"bad"}">${expHTML(q)}${memoHTML(k)}</div>
     </div>`;
   }).join("");
   $("#view").innerHTML = `
@@ -806,9 +1271,11 @@ function render(){
   else if(tab==="progress") renderProgress();
   else if(tab==="essay") renderEssay();
   else if(tab==="search") renderSearch();
+  else if(tab==="memo") renderMemo();
   else renderAll();
+  ttsSync();
 }
-const curSession = () => tab==="practice"?sessions.practice : tab==="wrong"?sessions.wrong : tab==="quiz"?sessions.quiz : (tab==="search"&&srchPracticing)?sessions.search : null;
+const curSession = () => tab==="practice"?sessions.practice : tab==="wrong"?sessions.wrong : tab==="quiz"?sessions.quiz : (tab==="search"&&srchPracticing)?sessions.search : (tab==="memo"&&memoPracticing)?sessions.memo : null;
 
 function pick(i){
   const s = curSession(); if(!s || s.submitted || !s.keys.length) return;
@@ -824,6 +1291,7 @@ function pick(i){
 }
 function go(n){
   const s=curSession(); if(!s) return;
+  ttsStop();
   s.idx=Math.max(0,Math.min(s.keys.length-1,n));
   if(s.kind==="practice" && !s.random){ prefs.pos[prefs.scope]=s.idx; save(); }
   render();
@@ -837,9 +1305,11 @@ function startPracticeScope(sc){
 
 document.getElementById("tabs").addEventListener("click",e=>{
   const b=e.target.closest("button[data-tab]"); if(!b) return;
+  ttsStop();
   tab=b.dataset.tab;
   if(tab==="wrong") sessions.wrong = newSession("wrong");
   if(tab==="search") srchPracticing = false;
+  if(tab==="memo") memoPracticing = false;
   render(); window.scrollTo({top:0});
 });
 
@@ -848,23 +1318,27 @@ document.getElementById("view").addEventListener("click",e=>{
   if(sc){ e.preventDefault(); return startPracticeScope(sc.dataset.scope); }
   const kw=e.target.closest("[data-kw]");
   if(kw){ srch.term=kw.dataset.kw; saveSrch(); $("#srchInput").value=srch.term; renderSearchResults(); return; }
-  const t=e.target.closest("[data-pick],[data-nav],[data-go],[data-act],[data-sgo]"); if(!t) return;
+  const tt=e.target.closest("[data-tts]");
+  if(tt) return ttsToggle(tt.dataset.tts);
+  const t=e.target.closest("[data-pick],[data-nav],[data-go],[data-act],[data-sgo],[data-memo]"); if(!t) return;
   if(t.dataset.sgo!==undefined) return startSearchPractice(+t.dataset.sgo);
+  if(t.dataset.memo!==undefined) return startMemoPractice(+t.dataset.memo);
   if(t.dataset.pick!==undefined) return pick(+t.dataset.pick);
   if(t.dataset.nav) return go(curSession().idx + (+t.dataset.nav));
   if(t.dataset.go!==undefined) return go(+t.dataset.go);
   const a=t.dataset.act;
   if(a==="restart"){
     if(tab==="practice"){ prefs.pos[prefs.scope]=0; save(); sessions.practice=newSession("practice",{random:prefs.random}); }
-    else if(tab==="search"){ const o=sessions.search; sessions.search=newSession("search",{keys:o.baseKeys, term:o.term, random:o.random}); }
+    else if(tab==="search"||tab==="memo"){ const o=sessions[tab]; sessions[tab]=newSession(tab,{keys:o.baseKeys, term:o.term, random:o.random}); }
     else sessions.wrong=newSession("wrong",{random:sessions.wrong&&sessions.wrong.random});
     render();
   }
   if(a==="srchPractice") return startSearchPractice(0);
   if(a==="srchBack"){ srchPracticing=false; render(); window.scrollTo({top:0}); return; }
+  if(a==="memoBack"){ memoPracticing=false; render(); window.scrollTo({top:0}); return; }
   if(a==="clear"){ if(confirm("確定要清除所有作答紀錄、錯題本與最高分嗎？")){ wrongSet=new Set(); history={}; best=null; prefs.pos={}; save(); refreshStats(); sessions.practice=null; render(); } }
   if(a==="startQuiz"){
-    prefs.quizScope=$("#quizScope").value; prefs.quizN=+$("#quizN").value; save();
+    prefs.quizScope=$("#quizScope").value; prefs.quizN=+$("#quizN").value; prefs.shuffleOpts=$("#quizShuf").checked; save();
     sessions.quiz=newSession("quiz",{scope:prefs.quizScope, n:prefs.quizN}); render(); window.scrollTo({top:0});
   }
   if(a==="retryQuiz"){ sessions.quiz=newSession("quiz",{scope:prefs.quizScope, n:prefs.quizN}); render(); window.scrollTo({top:0}); }
@@ -886,6 +1360,7 @@ document.getElementById("view").addEventListener("click",e=>{
 
 document.getElementById("view").addEventListener("toggle",e=>{
   if(e.target.classList && e.target.classList.contains("navgrid")) gridOpen=e.target.open;
+  if(e.target.classList && e.target.classList.contains("memo") && prefs.memoOpen!==e.target.open){ prefs.memoOpen=e.target.open; save(); }
 }, true);
 
 document.getElementById("view").addEventListener("change",e=>{
@@ -893,10 +1368,17 @@ document.getElementById("view").addEventListener("change",e=>{
   if(id==="scopeSel") startPracticeScope(e.target.value);
   if(id==="rnd"){
     if(tab==="practice"){ prefs.random=e.target.checked; save(); sessions.practice=newSession("practice",{random:prefs.random, resume:true}); }
-    else if(tab==="search"){ const o=sessions.search; sessions.search=newSession("search",{keys:o.baseKeys, term:o.term, random:e.target.checked}); }
+    else if(tab==="search"||tab==="memo"){ const o=sessions[tab]; sessions[tab]=newSession(tab,{keys:o.baseKeys, term:o.term, random:e.target.checked}); }
     else sessions.wrong=newSession("wrong",{random:e.target.checked});
     render();
   }
+  if(id==="shufOpt"){
+    prefs.shuffleOpts=e.target.checked; save();
+    const s=curSession(); if(s){ s.shuf=e.target.checked; s.perm={}; }
+    ttsStop(); render();
+  }
+  if(id==="ttsRate"){ prefs.ttsRate=+e.target.value; save(); }
+  if(id==="memoSort"){ prefs.memoSort=e.target.checked; save(); renderMemo(); }
   if(id==="srchScope"){ srch.scope=e.target.value; saveSrch(); renderSearchResults(); }
   if(id==="srchExp"){ srch.exp=e.target.checked; saveSrch(); renderSearchResults(); }
   if(id==="ovScope"){ ovScope=e.target.value; $("#ovSearch").value=""; renderOvList(); }
@@ -916,11 +1398,12 @@ document.addEventListener("keydown",e=>{
   if(e.ctrlKey || e.metaKey || e.altKey) return;
   if(["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName)) return;
   if(e.key==="/"){ e.preventDefault(); tab="search"; srchPracticing=false; render(); window.scrollTo({top:0}); return; }
-  if(!["practice","wrong","quiz","search"].includes(tab)) return;
+  if(!["practice","wrong","quiz","search","memo"].includes(tab)) return;
   const s=curSession(); if(!s || !s.keys.length || (tab==="quiz"&&s.submitted)) return;
   const k=e.key.toUpperCase();
   const map={A:0,B:1,C:2,D:3,"1":0,"2":1,"3":2,"4":3};
-  if(k in map){ e.preventDefault(); pick(map[k]); }
+  if(k in map){ e.preventDefault(); pick(optOrder(s, s.keys[s.idx])[map[k]]); }
+  else if(k==="R" && TTS_OK){ e.preventDefault(); ttsToggle("q"); }
   else if(e.key==="ArrowRight"){ e.preventDefault(); go(s.idx+1); }
   else if(e.key==="ArrowLeft"){ e.preventDefault(); go(s.idx-1); }
 });
