@@ -768,7 +768,24 @@ function scopeKeys(scope){
   if(scope && scope.startsWith("ch:")){ const c=CHAPTERS[+scope.slice(3)]; return OFF.filter(q=>q.ch===c).map(q=>"o"+q.n); }
   return [];
 }
+/* 綜合模擬：依認證考試比例，第 3–9 章（官方＋課本＋補充）80%、其他章節 20%。
+   補充教材中與官方相同的題目不放進題池，避免同一題抽到兩次。 */
+const MIX_CORE = c => c>=3 && c<=9;
+const chNoOf = q => q.bank==="official" ? CHAPTERS.indexOf(q.ch)+1 : q.bank==="book" ? 3 : q.sch;   // 跨章節 → 15
+function mixPools(){
+  const core=[], other=[];
+  ALL.forEach(q=>{ if(q.bank==="supp" && q.dup) return; (MIX_CORE(chNoOf(q)) ? core : other).push(q.key); });
+  return {core, other};
+}
+const mixMax = () => { const {core,other}=mixPools(); return Math.floor(Math.min(core.length/0.8, other.length/0.2)); };
+function mixKeys(n){
+  const {core, other} = mixPools();
+  n = Math.min(n || mixMax(), mixMax());
+  const nc = Math.round(n*0.8);
+  return shuffle([...shuffle(core).slice(0,nc), ...shuffle(other).slice(0,n-nc)]);
+}
 function scopeName(scope){
+  if(scope==="mix") return "綜合模擬（第 3–9 章 80%＋其他章節 20%）";
   if(scope==="all") return "官方題庫・全部章節";
   if(scope==="book") return "課本習題・第三章";
   if(scope==="supp") return "補充教材・全部章節";
@@ -848,6 +865,7 @@ function newSession(kind, o){
   o = o || {};
   let keys;
   if(kind==="wrong") keys = ALL.filter(q=>wrongSet.has(q.key)).map(q=>q.key);
+  else if(kind==="quiz" && o.scope==="mix") keys = mixKeys(o.n);
   else if(kind==="quiz"){ keys = shuffle(scopeKeys(o.scope)); if(o.n && o.n<keys.length) keys = keys.slice(0,o.n); }
   else if(kind==="search" || kind==="memo") keys = [...o.keys];
   else keys = scopeKeys(prefs.scope);
@@ -1200,7 +1218,8 @@ function renderQuiz(){
       <h2 style="margin-top:0">模擬測驗</h2>
       <p>從選定範圍隨機抽題，作答期間不顯示答案，交卷後以百分制計分並列出解析（70 分及格）。</p>
       <div style="display:grid;gap:10px;max-width:420px">
-        <label>出題範圍<br><select id="quizScope" style="width:100%">${scopeOptions(prefs.quizScope)}</select></label>
+        <label>出題範圍<br><select id="quizScope" style="width:100%"><optgroup label="依認證考試比例"><option value="mix" ${prefs.quizScope==="mix"?"selected":""}>綜合模擬：第 3–9 章 80%＋其他章節 20%</option></optgroup>${scopeOptions(prefs.quizScope)}</select></label>
+        <div style="font-size:.82rem;color:var(--muted);margin-top:-4px">綜合模擬依認證書目比例出題：第 3–9 章（含課本習題與補充教材）佔 80%，其他章節佔 20%。選「全部題目」時最多 ${mixMax()} 題。</div>
         <label>題數<br><select id="quizN" style="width:100%">${nOpts}</select></label>
         <label class="toggle"><input type="checkbox" id="quizShuf" ${prefs.shuffleOpts?"checked":""}> 選項 ABCD 隨機排列</label>
       </div>
@@ -1242,6 +1261,8 @@ function renderResult(s){
       <div>
         <span class="pass ${pass?"y":"n"}">${pass?"及格":"未及格"}</span>
         <div style="color:var(--muted);font-size:.9rem;margin-top:4px">${esc(scopeName(s.scope))}・答對 ${correct} / ${s.keys.length} 題・用時 ${Math.floor(secs/60)} 分 ${secs%60} 秒</div>
+        ${s.scope==="mix" ? (()=>{ const part=f=>{ const ks=s.keys.filter(k=>f(MIX_CORE(chNoOf(BY[k])))); return `${ks.filter(k=>s.answers[k]===BY[k].ans).length} / ${ks.length}`; };
+          return `<div style="color:var(--muted);font-size:.9rem;margin-top:2px">第 3–9 章答對 ${part(x=>x)}・其他章節答對 ${part(x=>!x)}</div>`; })() : ""}
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">
